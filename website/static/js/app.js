@@ -455,6 +455,72 @@ async function loadDiscordVC() {
     }
 }
 
+// Check Discord login status
+async function checkDiscordLogin() {
+    try {
+        const response = await fetch('/api/discord/user');
+        const data = await response.json();
+
+        if (data.logged_in) {
+            // Show logged in UI
+            document.getElementById('discord-not-logged-in').classList.add('hidden');
+            document.getElementById('discord-logged-in').classList.remove('hidden');
+
+            // Set user info
+            document.getElementById('discord-display-name').textContent = data.discord_username;
+
+            if (data.discord_avatar) {
+                const avatarUrl = `https://cdn.discordapp.com/avatars/${data.discord_id}/${data.discord_avatar}.png`;
+                document.getElementById('discord-avatar').src = avatarUrl;
+            } else {
+                document.getElementById('discord-avatar').src = 'https://cdn.discordapp.com/embed/avatars/0.png';
+            }
+
+            if (data.minecraft_username) {
+                document.getElementById('minecraft-link-input').value = data.minecraft_username;
+                document.getElementById('minecraft-linked-status').textContent = `✓ Linked to ${data.minecraft_username}`;
+                document.getElementById('minecraft-linked-status').classList.add('text-neon-green');
+            }
+        } else {
+            // Show not logged in UI
+            document.getElementById('discord-not-logged-in').classList.remove('hidden');
+            document.getElementById('discord-logged-in').classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Error checking Discord login:', error);
+    }
+}
+
+// Link Minecraft username
+async function linkMinecraftUsername() {
+    const username = document.getElementById('minecraft-link-input').value.trim();
+
+    if (!username) {
+        alert('Please enter a Minecraft username');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/discord/link', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ minecraft_username: username })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('minecraft-linked-status').textContent = `✓ Linked to ${username}`;
+            document.getElementById('minecraft-linked-status').classList.add('text-neon-green');
+        } else {
+            alert('Error linking Minecraft username: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error linking Minecraft username:', error);
+        alert('Error linking Minecraft username');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initSocket();
@@ -466,4 +532,16 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(error => console.error('Error loading stats:', error));
 
     loadLeaderboards();
+
+    // Check Discord login status
+    checkDiscordLogin();
+
+    // Check if Discord just linked
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('discord_linked') === 'true') {
+        // Remove the parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Show Discord tab
+        switchTab('discord');
+    }
 });

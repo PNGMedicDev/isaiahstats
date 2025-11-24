@@ -4,20 +4,32 @@ IsaiahStats - Real-time Gambling Statistics Tracker
 A Flask + Socket.IO application for tracking Isaiah's casino statistics
 """
 
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, redirect, session, url_for
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import sqlite3
 import json
 import time
 from datetime import datetime, timedelta
-from threading import Lock
+from threading import Lock, Thread
 import os
+import requests
+from urllib.parse import urlencode
+from cryptography.fernet import Fernet
+import discord_config
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'isaiah-stats-secret-key-change-in-production'
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Encryption for Discord tokens
+try:
+    cipher_suite = Fernet(discord_config.ENCRYPTION_KEY.encode())
+except:
+    print("WARNING: Invalid or missing ENCRYPTION_KEY. Generate one with:")
+    print("python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+    cipher_suite = None
 
 # Database setup
 DB_PATH = 'database/isaiah_stats.db'
@@ -80,20 +92,36 @@ def init_db():
         )
     ''')
 
-    # Discord VC status table
+    # Discord users table (OAuth authenticated users)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS discord_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            discord_id TEXT NOT NULL UNIQUE,
+            discord_username TEXT NOT NULL,
+            discord_discriminator TEXT,
+            discord_avatar TEXT,
+            minecraft_username TEXT,
+            access_token_encrypted TEXT NOT NULL,
+            refresh_token_encrypted TEXT,
+            token_expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Discord VC status table (current voice channel status)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS discord_vc_status (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            discord_username TEXT NOT NULL,
-            minecraft_username TEXT,
             discord_id TEXT NOT NULL UNIQUE,
+            guild_id TEXT NOT NULL,
             guild_name TEXT,
-            guild_id TEXT,
-            channel_name TEXT,
             channel_id TEXT,
-            is_connected BOOLEAN DEFAULT 0,
-            joined_at TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            channel_name TEXT,
+            is_connected BOOLEAN DEFAULT 1,
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (discord_id) REFERENCES discord_users(discord_id)
         )
     ''')
 
@@ -101,6 +129,7 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_timestamp ON bets(timestamp)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_username ON bets(username)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_players_username ON players(username)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_discord_users_discord_id ON discord_users(discord_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_discord_vc_discord_id ON discord_vc_status(discord_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_discord_vc_connected ON discord_vc_status(is_connected)')
 
@@ -417,17 +446,289 @@ def api_bet():
 def download_file(filename):
     return send_from_directory('static/downloads', filename)
 
-@app.route('/api/discord/vc', methods=['GET'])
-def api_discord_vc():
-    """Get all users currently in voice channels"""
+def encrypt_token(token):
+    """Encrypt a Discord token"""
+    if not cipher_suite or not token:
+        return None
+    return cipher_suite.encrypt(token.encode()).decode()
+
+def decrypt_token(encrypted_token):
+    """Decrypt a Discord token"""
+    if not cipher_suite or not encrypted_token:
+        return None
+    try:
+        return cipher_suite.decrypt(encrypted_token.encode()).decode()
+    except:
+        return None
+
+def get_discord_voice_state(access_token):
+    """Get user's voice state from Discord API"""
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    # Get user's guilds
+    response = requests.get(f'{discord_config.DISCORD_API_BASE}/users/@me/guilds', headers=headers)
+    if response.status_code != 200:
+        return None
+
+    guilds = response.json()
+
+    # Check voice state in each whitelisted guild
+    for guild in guilds:
+        guild_id = guild['id']
+
+        # Only check whitelisted guilds
+        if guild_id not in discord_config.WHITELISTED_GUILDS:
+            continue
+
+        # Get voice state for this guild
+        # Note: We need to get this from the gateway, but we can use a workaround
+        # by checking the user's connections or using a different approach
+
+        # For now, we'll use a simplified approach - checking guild channels
+        channels_response = requests.get(
+            f'{discord_config.DISCORD_API_BASE}/guilds/{guild_id}/channels',
+            headers=headers
+        )
+
+        if channels_response.status_code == 200:
+            channels = channels_response.json()
+            voice_channels = [ch for ch in channels if ch.get('type') == 2]  # Type 2 = Voice Channel
+
+            # Check if user is in any voice channel
+            for channel in voice_channels:
+                # This would require WebSocket connection for real-time data
+                # For this implementation, we'll use a different approach
+                pass
+
+    return None
+
+def check_all_voice_states():
+    """Check voice states for all authenticated users"""
     conn = get_db()
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT discord_username, minecraft_username, guild_name, channel_name, joined_at
-        FROM discord_vc_status
-        WHERE is_connected = 1
-        ORDER BY joined_at ASC
+        SELECT discord_id, discord_username, minecraft_username, access_token_encrypted
+        FROM discord_users
+    ''')
+
+    users = cursor.fetchall()
+
+    for user in users:
+        discord_id = user['discord_id']
+        access_token = decrypt_token(user['access_token_encrypted'])
+
+        if not access_token:
+            continue
+
+        # Get current voice state from Discord
+        voice_state = get_user_voice_state_via_api(access_token, discord_id)
+
+        if voice_state:
+            # Update or insert voice state
+            cursor.execute('''
+                INSERT INTO discord_vc_status
+                (discord_id, guild_id, guild_name, channel_id, channel_name, is_connected, joined_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(discord_id) DO UPDATE SET
+                    guild_id = ?,
+                    guild_name = ?,
+                    channel_id = ?,
+                    channel_name = ?,
+                    is_connected = 1,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (discord_id, voice_state['guild_id'], voice_state['guild_name'],
+                  voice_state['channel_id'], voice_state['channel_name'],
+                  voice_state['guild_id'], voice_state['guild_name'],
+                  voice_state['channel_id'], voice_state['channel_name']))
+        else:
+            # User not in VC, mark as disconnected
+            cursor.execute('''
+                UPDATE discord_vc_status
+                SET is_connected = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE discord_id = ?
+            ''', (discord_id,))
+
+    conn.commit()
+    conn.close()
+
+    # Emit update to all connected clients
+    socketio.emit('vc_update', {'refresh': True})
+
+def get_user_voice_state_via_api(access_token, user_id):
+    """
+    Get user's voice state from Discord API
+    Note: This requires checking voice states via WebSocket Gateway or bot token
+    This is a simplified version that checks user connections
+    """
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    # Get user's current connections/sessions
+    response = requests.get(f'{discord_config.DISCORD_API_BASE}/users/@me/connections', headers=headers)
+
+    if response.status_code != 200:
+        return None
+
+    # For actual voice state, we would need WebSocket Gateway connection
+    # This is a limitation of OAuth-only approach without a bot
+    # Alternative: Use user's client to report their own VC state
+    return None
+
+@app.route('/auth/discord')
+def discord_login():
+    """Redirect to Discord OAuth"""
+    params = {
+        'client_id': discord_config.DISCORD_CLIENT_ID,
+        'redirect_uri': discord_config.DISCORD_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'identify guilds guilds.members.read'
+    }
+    return redirect(f'{discord_config.DISCORD_OAUTH_URL}?{urlencode(params)}')
+
+@app.route('/auth/discord/callback')
+def discord_callback():
+    """Handle Discord OAuth callback"""
+    code = request.args.get('code')
+    if not code:
+        return 'Error: No code provided', 400
+
+    # Exchange code for access token
+    data = {
+        'client_id': discord_config.DISCORD_CLIENT_ID,
+        'client_secret': discord_config.DISCORD_CLIENT_SECRET,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': discord_config.DISCORD_REDIRECT_URI
+    }
+
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    response = requests.post(discord_config.DISCORD_TOKEN_URL, data=data, headers=headers)
+
+    if response.status_code != 200:
+        return 'Error exchanging code for token', 400
+
+    token_data = response.json()
+    access_token = token_data['access_token']
+    refresh_token = token_data.get('refresh_token')
+    expires_in = token_data['expires_in']
+
+    # Get user info
+    headers = {'Authorization': f'Bearer {access_token}'}
+    user_response = requests.get(discord_config.DISCORD_USER_URL, headers=headers)
+
+    if user_response.status_code != 200:
+        return 'Error fetching user info', 400
+
+    user_data = user_response.json()
+    discord_id = user_data['id']
+    discord_username = f"{user_data['username']}#{user_data['discriminator']}"
+
+    # Store user in database
+    with db_lock:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        expires_at = datetime.now() + timedelta(seconds=expires_in)
+
+        cursor.execute('''
+            INSERT INTO discord_users
+            (discord_id, discord_username, discord_discriminator, discord_avatar,
+             access_token_encrypted, refresh_token_encrypted, token_expires_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(discord_id) DO UPDATE SET
+                discord_username = ?,
+                discord_discriminator = ?,
+                discord_avatar = ?,
+                access_token_encrypted = ?,
+                refresh_token_encrypted = ?,
+                token_expires_at = ?,
+                updated_at = CURRENT_TIMESTAMP
+        ''', (discord_id, discord_username, user_data['discriminator'], user_data.get('avatar'),
+              encrypt_token(access_token), encrypt_token(refresh_token), expires_at,
+              discord_username, user_data['discriminator'], user_data.get('avatar'),
+              encrypt_token(access_token), encrypt_token(refresh_token), expires_at))
+
+        conn.commit()
+        conn.close()
+
+    # Store in session
+    session['discord_id'] = discord_id
+    session['discord_username'] = discord_username
+
+    return redirect('/?discord_linked=true')
+
+@app.route('/api/discord/link', methods=['POST'])
+def link_minecraft():
+    """Link Minecraft username to Discord account"""
+    if 'discord_id' not in session:
+        return jsonify({'error': 'Not logged in with Discord'}), 401
+
+    data = request.json
+    minecraft_username = data.get('minecraft_username')
+
+    if not minecraft_username:
+        return jsonify({'error': 'Minecraft username required'}), 400
+
+    with db_lock:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE discord_users
+            SET minecraft_username = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE discord_id = ?
+        ''', (minecraft_username, session['discord_id']))
+
+        conn.commit()
+        conn.close()
+
+    return jsonify({'success': True, 'minecraft_username': minecraft_username})
+
+@app.route('/api/discord/user')
+def get_discord_user():
+    """Get current Discord user info"""
+    if 'discord_id' not in session:
+        return jsonify({'logged_in': False})
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT discord_username, minecraft_username, discord_avatar
+        FROM discord_users
+        WHERE discord_id = ?
+    ''', (session['discord_id'],))
+
+    user = cursor.fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({'logged_in': False})
+
+    return jsonify({
+        'logged_in': True,
+        'discord_username': user['discord_username'],
+        'minecraft_username': user['minecraft_username'],
+        'discord_avatar': user['discord_avatar']
+    })
+
+@app.route('/api/discord/vc', methods=['GET'])
+def api_discord_vc():
+    """Get all users currently in voice channels (from whitelisted guilds only)"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT
+            u.discord_username,
+            u.minecraft_username,
+            v.guild_name,
+            v.channel_name,
+            v.joined_at
+        FROM discord_vc_status v
+        JOIN discord_users u ON v.discord_id = u.discord_id
+        WHERE v.is_connected = 1
+        ORDER BY v.joined_at ASC
     ''')
 
     users = []
@@ -454,63 +755,55 @@ def api_discord_vc():
     conn.close()
     return jsonify(users)
 
-@app.route('/api/discord/update', methods=['POST'])
-def api_discord_update():
-    """Update Discord VC status (called by Discord bot)"""
+@app.route('/api/discord/report_vc', methods=['POST'])
+def report_vc_status():
+    """Allow logged-in users to report their own VC status"""
+    if 'discord_id' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
     data = request.json
-
-    discord_id = data.get('discord_id')
-    discord_username = data.get('discord_username')
-    guild_name = data.get('guild_name')
     guild_id = data.get('guild_id')
-    channel_name = data.get('channel_name')
     channel_id = data.get('channel_id')
-    is_connected = data.get('is_connected', False)
-    minecraft_username = data.get('minecraft_username')
+    channel_name = data.get('channel_name')
+    guild_name = data.get('guild_name')
+    in_vc = data.get('in_vc', False)
 
-    if not discord_id or not discord_username:
-        return jsonify({'error': 'Missing required fields'}), 400
+    # Only track whitelisted guilds
+    if guild_id and guild_id not in discord_config.WHITELISTED_GUILDS:
+        return jsonify({'success': True, 'tracked': False})
 
     with db_lock:
         conn = get_db()
         cursor = conn.cursor()
 
-        if is_connected:
-            # User joined VC
+        if in_vc and guild_id:
             cursor.execute('''
                 INSERT INTO discord_vc_status
-                (discord_id, discord_username, minecraft_username, guild_name, guild_id,
-                 channel_name, channel_id, is_connected, joined_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                (discord_id, guild_id, guild_name, channel_id, channel_name, is_connected, joined_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT(discord_id) DO UPDATE SET
-                    discord_username = ?,
-                    minecraft_username = COALESCE(?, minecraft_username),
-                    guild_name = ?,
                     guild_id = ?,
-                    channel_name = ?,
+                    guild_name = ?,
                     channel_id = ?,
+                    channel_name = ?,
                     is_connected = 1,
-                    joined_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-            ''', (discord_id, discord_username, minecraft_username, guild_name, guild_id,
-                  channel_name, channel_id, discord_username, minecraft_username,
-                  guild_name, guild_id, channel_name, channel_id))
+            ''', (session['discord_id'], guild_id, guild_name, channel_id, channel_name,
+                  guild_id, guild_name, channel_id, channel_name))
         else:
-            # User left VC
             cursor.execute('''
                 UPDATE discord_vc_status
-                SET is_connected = 0,
-                    updated_at = CURRENT_TIMESTAMP
+                SET is_connected = 0, updated_at = CURRENT_TIMESTAMP
                 WHERE discord_id = ?
-            ''', (discord_id,))
+            ''', (session['discord_id'],))
 
         conn.commit()
         conn.close()
 
-    # Emit socket event for real-time updates
+    # Emit update
     socketio.emit('vc_update', {'refresh': True})
 
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'tracked': True})
 
 # Socket.IO events
 @socketio.on('connect')
