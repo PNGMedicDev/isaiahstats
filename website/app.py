@@ -80,10 +80,29 @@ def init_db():
         )
     ''')
 
+    # Discord VC status table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS discord_vc_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            discord_username TEXT NOT NULL,
+            minecraft_username TEXT,
+            discord_id TEXT NOT NULL UNIQUE,
+            guild_name TEXT,
+            guild_id TEXT,
+            channel_name TEXT,
+            channel_id TEXT,
+            is_connected BOOLEAN DEFAULT 0,
+            joined_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Create indexes
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_timestamp ON bets(timestamp)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_username ON bets(username)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_players_username ON players(username)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_discord_vc_discord_id ON discord_vc_status(discord_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_discord_vc_connected ON discord_vc_status(is_connected)')
 
     conn.commit()
     conn.close()
@@ -397,6 +416,101 @@ def api_bet():
 @app.route('/static/downloads/<path:filename>')
 def download_file(filename):
     return send_from_directory('static/downloads', filename)
+
+@app.route('/api/discord/vc', methods=['GET'])
+def api_discord_vc():
+    """Get all users currently in voice channels"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT discord_username, minecraft_username, guild_name, channel_name, joined_at
+        FROM discord_vc_status
+        WHERE is_connected = 1
+        ORDER BY joined_at ASC
+    ''')
+
+    users = []
+    for row in cursor.fetchall():
+        joined_time = datetime.fromisoformat(row['joined_at']) if row['joined_at'] else None
+        duration = ''
+        if joined_time:
+            delta = datetime.now() - joined_time
+            hours = int(delta.total_seconds() // 3600)
+            minutes = int((delta.total_seconds() % 3600) // 60)
+            if hours > 0:
+                duration = f"{hours}h {minutes}m"
+            else:
+                duration = f"{minutes}m"
+
+        users.append({
+            'discord_username': row['discord_username'],
+            'minecraft_username': row['minecraft_username'] or 'Unknown',
+            'guild_name': row['guild_name'],
+            'channel_name': row['channel_name'],
+            'duration': duration
+        })
+
+    conn.close()
+    return jsonify(users)
+
+@app.route('/api/discord/update', methods=['POST'])
+def api_discord_update():
+    """Update Discord VC status (called by Discord bot)"""
+    data = request.json
+
+    discord_id = data.get('discord_id')
+    discord_username = data.get('discord_username')
+    guild_name = data.get('guild_name')
+    guild_id = data.get('guild_id')
+    channel_name = data.get('channel_name')
+    channel_id = data.get('channel_id')
+    is_connected = data.get('is_connected', False)
+    minecraft_username = data.get('minecraft_username')
+
+    if not discord_id or not discord_username:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    with db_lock:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        if is_connected:
+            # User joined VC
+            cursor.execute('''
+                INSERT INTO discord_vc_status
+                (discord_id, discord_username, minecraft_username, guild_name, guild_id,
+                 channel_name, channel_id, is_connected, joined_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(discord_id) DO UPDATE SET
+                    discord_username = ?,
+                    minecraft_username = COALESCE(?, minecraft_username),
+                    guild_name = ?,
+                    guild_id = ?,
+                    channel_name = ?,
+                    channel_id = ?,
+                    is_connected = 1,
+                    joined_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (discord_id, discord_username, minecraft_username, guild_name, guild_id,
+                  channel_name, channel_id, discord_username, minecraft_username,
+                  guild_name, guild_id, channel_name, channel_id))
+        else:
+            # User left VC
+            cursor.execute('''
+                UPDATE discord_vc_status
+                SET is_connected = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE discord_id = ?
+            ''', (discord_id,))
+
+        conn.commit()
+        conn.close()
+
+    # Emit socket event for real-time updates
+    socketio.emit('vc_update', {'refresh': True})
+
+    return jsonify({'success': True})
 
 # Socket.IO events
 @socketio.on('connect')

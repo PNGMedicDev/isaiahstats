@@ -32,6 +32,12 @@ function initSocket() {
             loadLeaderboards();
         }
     });
+
+    socket.on('vc_update', (data) => {
+        if (currentTab === 'discord') {
+            loadDiscordVC();
+        }
+    });
 }
 
 // Update global statistics
@@ -117,6 +123,9 @@ function switchTab(tab) {
             break;
         case 'search':
             // Search is handled by input events
+            break;
+        case 'discord':
+            loadDiscordVC();
             break;
     }
 }
@@ -373,6 +382,77 @@ function renderPlayerHistory(history) {
             </tr>
         `;
     }).join('');
+}
+
+// Load Discord VC status
+async function loadDiscordVC() {
+    try {
+        const users = await fetch('/api/discord/vc').then(r => r.json());
+        const container = document.getElementById('discord-vc-list');
+        const emptyState = document.getElementById('discord-vc-empty');
+
+        if (!container) return;
+
+        if (users.length === 0) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        container.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+
+        container.innerHTML = users.map(user => {
+            const mcUsername = user.minecraft_username && user.minecraft_username !== 'Unknown'
+                ? user.minecraft_username
+                : null;
+
+            return `
+                <div class="bg-dark-card border border-dark-border rounded-xl p-4 hover:border-neon-purple/30 transition-all duration-200">
+                    <div class="flex items-center space-x-4">
+                        ${mcUsername ?
+                            `<img src="https://mc-heads.net/avatar/${mcUsername}/48"
+                                  alt="${mcUsername}"
+                                  class="w-12 h-12 rounded-lg border-2 border-neon-purple shadow-lg"
+                                  onerror="this.src='https://mc-heads.net/avatar/MHF_Steve/48'">` :
+                            `<div class="w-12 h-12 rounded-lg border-2 border-gray-700 bg-gray-800 flex items-center justify-center">
+                                <i class="fab fa-discord text-gray-600 text-2xl"></i>
+                             </div>`
+                        }
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-1">
+                                ${mcUsername ?
+                                    `<span class="text-white font-semibold">${mcUsername}</span>` :
+                                    `<span class="text-white font-semibold">${user.discord_username}</span>`
+                                }
+                                <span class="text-xs text-gray-500">•</span>
+                                <span class="text-xs text-gray-400">${user.duration}</span>
+                            </div>
+                            <div class="flex items-center space-x-2 text-xs text-gray-400">
+                                <i class="fas fa-headphones text-neon-purple"></i>
+                                <span>${user.channel_name}</span>
+                                ${user.guild_name ? `<span class="text-gray-600">in ${user.guild_name}</span>` : ''}
+                            </div>
+                            ${!mcUsername ?
+                                `<div class="text-xs text-gray-500 mt-1">
+                                    Discord: ${user.discord_username}
+                                 </div>` :
+                                `<div class="text-xs text-gray-500 mt-1">
+                                    Discord: ${user.discord_username}
+                                 </div>`
+                            }
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-2 h-2 bg-neon-green rounded-full live-indicator"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading Discord VC data:', error);
+    }
 }
 
 // Initialize on page load

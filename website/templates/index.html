@@ -72,33 +72,8 @@
         <div class="absolute -bottom-8 left-20 w-72 h-72 bg-neon-blue opacity-10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
     </div>
 
-    <!-- Discord Banner -->
-    <div id="discord-banner" class="sticky top-0 z-50 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-indigo-500/50 backdrop-blur-xl">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3 flex-1">
-                    <div class="flex-shrink-0">
-                        <i class="fab fa-discord text-white text-2xl"></i>
-                    </div>
-                    <div class="flex-1">
-                        <p class="text-white font-semibold text-sm sm:text-base">Join the Casino Club Discord Server!</p>
-                        <p class="text-indigo-200 text-xs hidden sm:block">Tired of getting scammed? Gamble with our trusted casino hosts! Also check out the daily elytra giveaways!</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <a href="https://discord.gg/BjVmxpf8kq" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-gray-100 text-indigo-600 font-bold px-4 py-2 rounded-lg transition-all duration-200 text-sm whitespace-nowrap">
-                        Join Now
-                    </a>
-                    <button onclick="closeBanner()" class="text-white hover:text-indigo-200 transition-colors p-2">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Header -->
-    <header id="main-header" class="sticky z-40 backdrop-blur-xl bg-dark-bg/80 border-b border-dark-border" style="top: 0px;">
+    <header id="main-header" class="sticky top-0 z-40 backdrop-blur-xl bg-dark-bg/80 border-b border-dark-border">
         <div class="container mx-auto px-4 sm:px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3 sm:space-x-4">
@@ -186,6 +161,9 @@
             </button>
             <button onclick="switchTab('recent')" id="tab-recent" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:text-white transition-all duration-200 whitespace-nowrap glass-card text-gray-400">
                 <i class="fas fa-bolt mr-2"></i>Live Feed
+            </button>
+            <button onclick="switchTab('discord')" id="tab-discord" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:text-white transition-all duration-200 whitespace-nowrap glass-card text-gray-400">
+                <i class="fab fa-discord mr-2"></i>Discord VC
             </button>
         </div>
 
@@ -283,13 +261,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- Discord VC Tab -->
+        <div id="content-discord" class="tab-content hidden">
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-4 sm:mb-6">
+                    <h3 class="text-base sm:text-lg font-bold text-white orbitron flex items-center">
+                        <i class="fab fa-discord text-neon-purple mr-2"></i>
+                        Voice Channel Activity
+                    </h3>
+                    <button onclick="loadDiscordVC()" class="glass-card px-3 py-2 rounded-lg hover:border-neon-purple/50 transition-all duration-200">
+                        <i class="fas fa-sync-alt text-gray-400 hover:text-neon-purple"></i>
+                    </button>
+                </div>
+
+                <div id="discord-vc-list" class="space-y-3">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+
+                <div id="discord-vc-empty" class="text-center py-12 hidden">
+                    <i class="fas fa-volume-mute text-gray-600 text-4xl mb-4"></i>
+                    <p class="text-gray-400 text-sm">No one is currently in a voice channel</p>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 mt-6">
+                <h3 class="text-base sm:text-lg font-bold text-white mb-3 orbitron flex items-center">
+                    <i class="fas fa-info-circle text-neon-blue mr-2"></i>
+                    How to Link Your Minecraft Account
+                </h3>
+                <div class="text-gray-300 text-sm space-y-2">
+                    <p>To display your Minecraft username and avatar:</p>
+                    <ol class="list-decimal list-inside space-y-1 ml-2">
+                        <li>Join a Discord server with the IsaiahStats bot</li>
+                        <li>Use the command: <code class="bg-dark-card px-2 py-1 rounded text-neon-green">!link YourMinecraftUsername</code></li>
+                        <li>Your Discord account will now show your Minecraft info in the VC tracker</li>
+                    </ol>
+                    <p class="mt-3 text-gray-400 text-xs">
+                        Other commands: <code class="bg-dark-card px-2 py-1 rounded">!unlink</code>, <code class="bg-dark-card px-2 py-1 rounded">!whoami</code>
+                    </p>
+                </div>
+            </div>
+        </div>
     </main>
 
-    <script>
-        function closeBanner() {
-            document.getElementById('discord-banner').style.display = 'none';
-        }
-    </script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
