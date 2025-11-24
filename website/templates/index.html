@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IsaiahStats - Gamble with Isaiah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-purple': '#a855f7',
+                        'neon-pink': '#ec4899',
+                        'neon-blue': '#3b82f6',
+                        'neon-green': '#10b981',
+                        'neon-gold': '#f59e0b',
+                        'dark-bg': '#0a0a0f',
+                        'dark-card': '#13131a',
+                        'dark-border': '#1f1f29',
+                    },
+                    animation: {
+                        'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+                        'slide-up': 'slide-up 0.5s ease-out',
+                        'slide-down': 'slide-down 0.5s ease-out',
+                        'fade-in': 'fade-in 0.6s ease-out',
+                        'bounce-slow': 'bounce 3s infinite',
+                        'spin-slow': 'spin 3s linear infinite',
+                        'blob': 'blob 7s infinite',
+                    },
+                    keyframes: {
+                        'glow-pulse': {
+                            '0%, 100%': { boxShadow: '0 0 20px rgba(168, 85, 247, 0.4)' },
+                            '50%': { boxShadow: '0 0 40px rgba(168, 85, 247, 0.8)' },
+                        },
+                        'slide-up': {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        'slide-down': {
+                            '0%': { transform: 'translateY(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        'fade-in': {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        'blob': {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-bg text-gray-100 min-h-screen pb-20 md:pb-0">
+
+    <!-- Background effects -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden">
+        <div class="absolute inset-0" style="background-image: linear-gradient(#1a1a1a 1px, transparent 1px), linear-gradient(90deg, #1a1a1a 1px, transparent 1px); background-size: 50px 50px; opacity: 0.2;"></div>
+        <div class="absolute top-0 -left-4 w-72 h-72 bg-neon-green opacity-10 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+        <div class="absolute top-0 -right-4 w-72 h-72 bg-neon-purple opacity-10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-neon-blue opacity-10 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+    </div>
+
+    <!-- Discord Banner -->
+    <div id="discord-banner" class="sticky top-0 z-50 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-indigo-500/50 backdrop-blur-xl">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 flex-1">
+                    <div class="flex-shrink-0">
+                        <i class="fab fa-discord text-white text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-white font-semibold text-sm sm:text-base">Join the Casino Club Discord Server!</p>
+                        <p class="text-indigo-200 text-xs hidden sm:block">Tired of getting scammed? Gamble with our trusted casino hosts! Also check out the daily elytra giveaways!</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a href="https://discord.gg/BjVmxpf8kq" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-gray-100 text-indigo-600 font-bold px-4 py-2 rounded-lg transition-all duration-200 text-sm whitespace-nowrap">
+                        Join Now
+                    </a>
+                    <button onclick="closeBanner()" class="text-white hover:text-indigo-200 transition-colors p-2">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header id="main-header" class="sticky z-40 backdrop-blur-xl bg-dark-bg/80 border-b border-dark-border" style="top: 0px;">
+        <div class="container mx-auto px-4 sm:px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <div class="relative">
+                        <div class="w-12 h-12 sm:w-14 sm:h-14 bg-neon-green rounded-lg flex items-center justify-center">
+                            <i class="fas fa-dice text-black text-xl sm:text-2xl font-bold"></i>
+                        </div>
+                        <div class="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full live-indicator"></div>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl sm:text-4xl font-black orbitron gradient-text">IsaiahStats</h1>
+                        <p class="text-xs sm:text-sm text-gray-400 hidden sm:block">Gamble with Isaiah</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <div class="hidden sm:flex items-center space-x-2 glass-card px-3 sm:px-4 py-2 rounded-lg">
+                        <div class="w-2 h-2 bg-neon-green rounded-full live-indicator"></div>
+                        <span class="text-xs sm:text-sm text-gray-300 font-medium">LIVE</span>
+                    </div>
+                    <div id="connection-status" class="text-xs sm:text-sm text-gray-400">
+                        <i class="fas fa-check-circle text-neon-green"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Live Bet Notification -->
+    <div id="live-bet-notification" class="fixed top-20 right-4 z-50" style="display: none;">
+        <div class="glass-card px-6 py-4 rounded-xl shadow-2xl border-neon-green bet-notification max-w-sm">
+            <div class="flex items-center space-x-3">
+                <img id="live-bet-avatar" src="https://mc-heads.net/avatar/Steve/48" alt="Player" class="w-12 h-12 rounded-lg border-2 border-neon-green shadow-lg">
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-white" id="live-bet-text">Player won!</p>
+                    <p class="text-xs text-gray-400" id="live-bet-amount">$100M → $200M</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10">
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8 animate-fade-in">
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:scale-105 transition-transform duration-300">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wide">Total Bets</h3>
+                </div>
+                <p class="text-2xl sm:text-4xl font-bold text-white orbitron stat-number" id="total-bets">0</p>
+                <p class="text-xs text-gray-600 mt-1 sm:mt-2">All time</p>
+            </div>
+
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:scale-105 transition-transform duration-300">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wide">Total Wagered</h3>
+                </div>
+                <p class="text-2xl sm:text-4xl font-bold text-white orbitron stat-number" id="total-wagered">$0</p>
+                <p class="text-xs text-gray-600 mt-1 sm:mt-2">Total volume</p>
+            </div>
+
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:scale-105 transition-transform duration-300">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wide">Total House Profit</h3>
+                </div>
+                <p class="text-2xl sm:text-4xl font-bold text-neon-green orbitron stat-number" id="house-profit">$0</p>
+                <p class="text-xs text-gray-600 mt-1 sm:mt-2">Casino earnings</p>
+            </div>
+
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:scale-105 transition-transform duration-300">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wide">Average House Edge</h3>
+                </div>
+                <p class="text-2xl sm:text-4xl font-bold text-white orbitron stat-number" id="house-edge">0%</p>
+                <p class="text-xs text-gray-600 mt-1 sm:mt-2">Average %</p>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex space-x-2 mb-6 overflow-x-auto scrollbar-hide">
+            <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold whitespace-nowrap transition-all duration-200 tab-active text-black bg-neon-green">
+                <i class="fas fa-crown mr-2"></i>Leaderboards
+            </button>
+            <button onclick="switchTab('search')" id="tab-search" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:text-white transition-all duration-200 whitespace-nowrap glass-card text-gray-400">
+                <i class="fas fa-search mr-2"></i>Player Search
+            </button>
+            <button onclick="switchTab('recent')" id="tab-recent" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:text-white transition-all duration-200 whitespace-nowrap glass-card text-gray-400">
+                <i class="fas fa-bolt mr-2"></i>Live Feed
+            </button>
+            <button onclick="switchTab('moddownload')" id="tab-moddownload" class="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:text-white transition-all duration-200 whitespace-nowrap glass-card text-gray-400">
+                <i class="fas fa-download mr-2"></i>Download Mod
+            </button>
+        </div>
+
+        <!-- Leaderboard Tab -->
+        <div id="content-leaderboard" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div class="relative overflow-hidden rounded-2xl animate-slide-up">
+                    <div class="absolute inset-0 bg-gradient-to-br from-neon-green/10 via-transparent to-neon-blue/10"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                    <div class="relative glass-card border border-neon-green/30 p-4 sm:p-6">
+                        <div class="flex items-center mb-4 sm:mb-6">
+                            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-neon-green to-neon-blue flex items-center justify-center mr-3 shadow-lg shadow-neon-green/50">
+                                <i class="fas fa-fire text-white text-xl sm:text-2xl"></i>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-bold text-white orbitron">Most Wagered</h3>
+                        </div>
+                        <div id="most-wagered" class="space-y-2 sm:space-y-3">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative overflow-hidden rounded-2xl animate-slide-up" style="animation-delay: 0.1s;">
+                    <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-orange-500/10"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                    <div class="relative glass-card border border-yellow-500/30 p-4 sm:p-6">
+                        <div class="flex items-center mb-4 sm:mb-6">
+                            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center mr-3 shadow-lg shadow-yellow-500/50">
+                                <i class="fas fa-trophy text-white text-xl sm:text-2xl"></i>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-bold text-white orbitron">Top Winners</h3>
+                        </div>
+                        <div id="most-won" class="space-y-2 sm:space-y-3">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative overflow-hidden rounded-2xl animate-slide-up" style="animation-delay: 0.2s;">
+                    <div class="absolute inset-0 bg-gradient-to-br from-red-500/10 via-transparent to-pink-500/10"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                    <div class="relative glass-card border border-red-500/30 p-4 sm:p-6">
+                        <div class="flex items-center mb-4 sm:mb-6">
+                            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center mr-3 shadow-lg shadow-red-500/50">
+                                <i class="fas fa-skull text-white text-xl sm:text-2xl"></i>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-bold text-white orbitron">Top Losers</h3>
+                        </div>
+                        <div id="most-lost" class="space-y-2 sm:space-y-3">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Search Tab -->
+        <div id="content-search" class="tab-content hidden">
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 mb-6">
+                <div class="relative">
+                    <input type="text" id="player-search" placeholder="Search for a player..." class="w-full bg-dark-card text-white px-4 sm:px-6 py-3 sm:py-4 pl-12 sm:pl-14 rounded-xl border-2 border-neon-purple/30 focus:border-neon-purple focus:outline-none transition-all duration-300 text-sm sm:text-base">
+                    <i class="fas fa-search text-gray-400 absolute left-4 sm:left-5 top-1/2 transform -translate-y-1/2"></i>
+                </div>
+                <div id="search-suggestions" class="mt-3 sm:mt-4"></div>
+            </div>
+
+            <div id="player-stats" class="hidden space-y-4 sm:space-y-6">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Live Feed Tab -->
+        <div id="content-recent" class="tab-content hidden">
+            <div class="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                <h3 class="text-base sm:text-lg font-bold text-white mb-4 orbitron flex items-center">
+                    <i class="fas fa-bolt text-neon-green mr-2"></i>
+                    Live Bet Feed
+                </h3>
+                <div class="overflow-x-auto scrollbar-hide">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-dark-border">
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold">Time</th>
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold">Player</th>
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold">Bet</th>
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold">Result</th>
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold hidden sm:table-cell">Multiplier</th>
+                                <th class="text-left py-3 px-2 sm:px-4 text-gray-400 font-semibold">Payout</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-bets">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mod Download Tab -->
+        <div id="content-moddownload" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/50">
+                            <i class="fas fa-puzzle-piece text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white orbitron">IsaiahUtils Mod</h2>
+                            <p class="text-sm text-gray-400">Enhanced Casino Helper for Minecraft 1.21.3</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-6 sm:p-8 mb-6">
+                    <div class="flex items-start space-x-4 mb-6">
+                        <div class="flex-shrink-0">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                                <i class="fas fa-download text-white text-3xl"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold text-white mb-2">Download IsaiahUtils Mod</h3>
+                            <p class="text-gray-300 text-sm mb-4">An enhanced Minecraft mod with advanced features for casino betting. Compatible with Minecraft 1.21.3.</p>
+                            <div class="flex flex-wrap gap-3">
+                                <a href="/static/downloads/isaiahutils.jar" download class="inline-flex items-center space-x-2 bg-neon-green hover:bg-green-600 text-black font-semibold px-6 py-3 rounded-lg transition-all duration-200 shadow-lg shadow-neon-green/30">
+                                    <i class="fas fa-download"></i>
+                                    <span>Download Mod</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-white">Mod Information</h3>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Version:</span>
+                                <span class="text-white font-semibold">v2.0.0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Minecraft:</span>
+                                <span class="text-white font-semibold">1.21.3</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Mod Loader:</span>
+                                <span class="text-white font-semibold">Fabric</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                                <i class="fas fa-star text-purple-400 text-xl"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-white">Enhanced Features</h3>
+                        </div>
+                        <ul class="space-y-2 text-sm text-gray-300">
+                            <li class="flex items-start space-x-2">
+                                <i class="fas fa-check text-neon-green mt-1"></i>
+                                <span>Advanced bet tracking with statistics</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <i class="fas fa-check text-neon-green mt-1"></i>
+                                <span>Sound notifications for wins/losses</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <i class="fas fa-check text-neon-green mt-1"></i>
+                                <span>Export bet history to CSV</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <i class="fas fa-check text-neon-green mt-1"></i>
+                                <span>Real-time sync with IsaiahStats</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function closeBanner() {
+            document.getElementById('discord-banner').style.display = 'none';
+        }
+    </script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

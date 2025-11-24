@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+database/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Minecraft Mod
+mod/.gradle/
+mod/build/
+mod/run/
+mod/.idea/
+mod/*.iml
+mod/*.ipr
+mod/*.iws
+
+# Gradle
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+
+# Logs
+*.log
+logs/
+
+# Config
+config/isaiahutils/exports/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+build/
+
+# Temporary files
+*.tmp
+*.bak
+*.cache

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "isaiahutils",
+  "version": "${version}",
+  "name": "IsaiahUtils",
+  "description": "Enhanced Casino Betting Mod for Isaiah's gambling statistics",
+  "authors": [
+    "Isaiah Casino Team"
+  ],
+  "contact": {
+    "homepage": "https://isaiahstats.com",
+    "sources": "https://github.com/isaiah/isaiahutils"
+  },
+  "license": "MIT",
+  "icon": "assets/isaiahutils/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.isaiahutils.IsaiahUtils"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.3",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}

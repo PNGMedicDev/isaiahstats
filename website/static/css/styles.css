@@ -1,0 +1,218 @@
+/* IsaiahStats Custom Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+    --neon-green: #10b981;
+    --neon-purple: #a855f7;
+    --neon-blue: #3b82f6;
+    --neon-pink: #ec4899;
+    --dark-bg: #0a0a0f;
+    --dark-card: #13131a;
+    --dark-border: #1f1f29;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--dark-bg);
+    color: #f3f4f6;
+    overflow-x: hidden;
+}
+
+.orbitron {
+    font-family: 'Orbitron', sans-serif;
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, var(--neon-green), var(--neon-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.glass-card {
+    background: rgba(19, 19, 26, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--dark-border);
+}
+
+.high-roller-badge {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.live-indicator {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.bet-notification {
+    animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.tab-active {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(19, 19, 26, 0.95);
+    backdrop-filter: blur(20px);
+    z-index: 50;
+}
+
+.gradient-border {
+    padding: 2px;
+    background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
+    border-radius: 1rem;
+}
+
+.gradient-border-inner {
+    background: var(--dark-card);
+    border-radius: calc(1rem - 2px);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--dark-border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-purple);
+}
+
+/* Animations */
+@keyframes glow-pulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+    }
+}
+
+/* Responsive table */
+@media (max-width: 640px) {
+    table {
+        font-size: 0.75rem;
+    }
+
+    th, td {
+        padding: 0.5rem !important;
+    }
+}
+
+/* Loading animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(16, 185, 129, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--neon-green);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Button hover effects */
+button:hover, .cursor-pointer:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+}
+
+button:active, .cursor-pointer:active {
+    transform: translateY(0);
+}
+
+/* Input focus effects */
+input:focus {
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+}
+
+/* Card hover effects */
+.glass-card:hover {
+    border-color: rgba(16, 185, 129, 0.3);
+    transition: border-color 0.3s ease;
+}
+
+/* Stats number animation */
+.stat-number {
+    transition: all 0.3s ease;
+}
+
+/* Tooltip */
+.tooltip {
+    position: relative;
+}
+
+.tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    margin-bottom: 0.5rem;
+}
+
+.tooltip:hover::before {
+    opacity: 1;
+}
