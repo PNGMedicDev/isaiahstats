@@ -31,7 +31,7 @@ public class Config {
 
     // Features
     public boolean soundEnabled = true;
-    public boolean syncEnabled = false;
+    public boolean syncEnabled = true; // Auto-sync enabled by default
     public String serverUrl = "http://localhost:5000";
 
     // Advanced

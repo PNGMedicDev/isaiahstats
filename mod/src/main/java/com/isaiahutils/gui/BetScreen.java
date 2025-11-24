@@ -71,21 +71,11 @@ public class BetScreen extends Screen {
                 }
         ).dimensions(centerX - 100, currentY, 200, 20).build());
 
-        // Sync toggle button
+        // Auto-sync info label (web sync is always enabled)
         currentY += 25;
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.literal("Web Sync: " + (IsaiahUtils.config.syncEnabled ? "ON" : "OFF")),
-                button -> {
-                    IsaiahUtils.config.syncEnabled = !IsaiahUtils.config.syncEnabled;
-                    button.setMessage(Text.literal("Web Sync: " + (IsaiahUtils.config.syncEnabled ? "ON" : "OFF")));
-                    if (IsaiahUtils.webSync != null) {
-                        IsaiahUtils.webSync.setEnabled(IsaiahUtils.config.syncEnabled);
-                    }
-                }
-        ).dimensions(centerX - 100, currentY, 200, 20).build());
 
         // Save and Cancel buttons
-        currentY += 35;
+        currentY += 25;
         this.addDrawableChild(ButtonWidget.builder(
                 Text.literal("Save"),
                 button -> {
@@ -146,6 +136,11 @@ public class BetScreen extends Screen {
         currentY += fieldSpacing;
         context.drawTextWithShadow(this.textRenderer, "Server URL:", centerX - 100, currentY - 10, 0xAAAAAAA);
         this.serverUrlField.render(context, mouseX, mouseY, delta);
+
+        // Auto-sync info
+        currentY += fieldSpacing + 10;
+        currentY += 25;
+        context.drawCenteredTextWithShadow(this.textRenderer, "§a§lWeb Sync: Always Enabled", centerX, currentY + 5, 0x00FF00);
     }
 
     @Override
